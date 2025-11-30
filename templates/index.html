@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKX 量化交易机器人</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <div class="logo">OKX Quant Bot</div>
+            <ul class="nav-links">
+                <li class="active" onclick="showSection('dashboard')">仪表盘</li>
+                <li onclick="showSection('strategies')">策略管理</li>
+                <li onclick="showSection('ai-generator')">AI 策略生成</li>
+                <li onclick="showSection('backtest')">回测系统</li>
+                <li onclick="showSection('settings')">系统设置</li>
+            </ul>
+        </nav>
+
+        <main class="content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section active">
+                <h2>账户概览</h2>
+                <div class="cards-container">
+                    <div class="card">
+                        <h3>总权益 (USDT)</h3>
+                        <div id="total-equity" class="value">Loading...</div>
+                    </div>
+                    <div class="card">
+                        <h3>可用余额 (USDT)</h3>
+                        <div id="available-balance" class="value">Loading...</div>
+                    </div>
+                    <div class="card">
+                        <h3>持仓数量</h3>
+                        <div id="position-count" class="value">Loading...</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>权益曲线</h3>
+                    <canvas id="equityChart"></canvas>
+                </div>
+
+                <h3>当前持仓</h3>
+                <div class="table-container">
+                    <table id="positions-table">
+                        <thead>
+                            <tr>
+                                <th>交易对</th>
+                                <th>方向</th>
+                                <th>杠杆</th>
+                                <th>持仓量</th>
+                                <th>开仓均价</th>
+                                <th>未实现盈亏</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Positions will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Strategies Section -->
+            <section id="strategies" class="section">
+                <h2>策略管理</h2>
+                <div class="table-container">
+                    <table id="strategies-table">
+                        <thead>
+                            <tr>
+                                <th>策略名称</th>
+                                <th>状态</th>
+                                <th>交易对</th>
+                                <th>最后心跳</th>
+                                <th>总盈亏 (USDT)</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Strategies will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>启动新策略</h3>
+                <div class="control-panel">
+                    <div class="form-group">
+                        <label>选择策略</label>
+                        <select id="strategy-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>交易对</label>
+                        <input type="text" id="trade-symbol" value="BTC-USDT">
+                    </div>
+                    <div class="form-group">
+                        <label>K线周期</label>
+                        <select id="strategy-interval">
+                            <option value="1m">1分钟</option>
+                            <option value="5m">5分钟</option>
+                            <option value="15m">15分钟</option>
+                            <option value="1H" selected>1小时</option>
+                            <option value="4H">4小时</option>
+                            <option value="1D">1天</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>杠杆倍率</label>
+                        <input type="number" id="leverage" value="1">
+                    </div>
+                    <button onclick="runStrategy()" class="btn primary">启动策略</button>
+                </div>
+
+                <!-- Edit Strategy Modal -->
+                <div id="edit-strategy-modal" class="modal" style="display:none;">
+                    <div class="modal-content" style="max-width: 900px;">
+                        <span class="close" onclick="closeEditStrategyModal()">&times;</span>
+                        <h2>📝 编辑策略</h2>
+                        <div class="form-group">
+                            <label>策略名称</label>
+                            <input type="text" id="edit-strategy-name" readonly style="background:#1e293b;cursor:not-allowed;">
+                        </div>
+                        <div class="form-group">
+                            <label>策略代码</label>
+                            <textarea id="edit-strategy-code" style="width:100%;height:500px;font-family:monospace;font-size:14px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:15px;resize:vertical;"></textarea>
+                        </div>
+                        <div style="display:flex;gap:10px;margin-top:15px;">
+                            <button onclick="saveEditedStrategy()" class="btn primary">💾 保存修改</button>
+                            <button onclick="closeEditStrategyModal()" class="btn" style="background:#64748b;color:white;">取消</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategy Details Modal -->
+                <div id="strategy-details-modal" class="modal" style="display:none;">
+                    <div class="modal-content">
+                        <span class="close" onclick="closeStrategyDetails()">&times;</span>
+                        <h2 id="modal-strategy-name">策略详情</h2>
+
+                        <!-- Performance Metrics -->
+                        <div class="metrics-cards">
+                            <div class="metric-card">
+                                <h4>总盈亏</h4>
+                                <div id="metric-total-pnl" class="metric-value">0</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>总交易次数</h4>
+                                <div id="metric-total-trades" class="metric-value">0</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>胜率</h4>
+                                <div id="metric-win-rate" class="metric-value">0%</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>盈利交易</h4>
+                                <div id="metric-winning-trades" class="metric-value">0</div>
+                            </div>
+                        </div>
+
+                        <!-- Logs Section -->
+                        <h3>执行日志</h3>
+                        <div id="strategy-logs-viewer" class="logs-viewer">
+                            <!-- Logs will be populated here -->
+                        </div>
+
+                        <!-- Trades Section -->
+                        <h3>交易记录</h3>
+                        <div class="table-container">
+                            <table id="strategy-trades-table">
+                                <thead>
+                                    <tr>
+                                        <th>时间</th>
+                                        <th>交易对</th>
+                                        <th>方向</th>
+                                        <th>价格</th>
+                                        <th>数量</th>
+                                        <th>状态</th>
+                                        <th>盈亏</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Trades will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- AI Generator Section -->
+            <section id="ai-generator" class="section">
+                <h2>AI 策略生成</h2>
+                <div class="ai-input-container">
+                    <textarea id="ai-prompt" placeholder="请输入您的策略想法，例如：创建一个基于双均线交叉的策略，当5日线上穿20日线时买入..."></textarea>
+                    <button onclick="generateStrategy()" class="btn primary">生成策略</button>
+                </div>
+                <div id="generated-code-container" style="display:none;">
+                    <h3>生成的代码</h3>
+                    <pre><code id="generated-code" class="python"></code></pre>
+                    <div class="action-buttons">
+                        <button onclick="saveGeneratedStrategy()" class="btn success">保存策略</button>
+                        <button onclick="discardGeneratedStrategy()" class="btn danger">放弃</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Backtest Section -->
+            <section id="backtest" class="section">
+                <h2>策略回测</h2>
+
+                <!-- 数据管理面板 -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <h3>📊 历史数据管理</h3>
+                    <div class="control-panel" style="flex-wrap: wrap;">
+                        <div class="form-group">
+                            <label>交易对</label>
+                            <select id="sync-symbol">
+                                <option value="BTC-USDT">BTC-USDT</option>
+                                <option value="ETH-USDT">ETH-USDT</option>
+                                <option value="SOL-USDT">SOL-USDT</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>K线周期</label>
+                            <select id="sync-bar">
+                                <option value="1H">1小时</option>
+                                <option value="4H">4小时</option>
+                                <option value="1D">1天</option>
+                                <option value="15m">15分钟</option>
+                                <option value="5m">5分钟</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>开始日期</label>
+                            <input type="date" id="sync-start-date" value="2024-01-01">
+                        </div>
+                        <div class="form-group">
+                            <label>结束日期</label>
+                            <input type="date" id="sync-end-date">
+                        </div>
+                        <button onclick="syncMarketData()" class="btn primary">同步数据</button>
+                        <button onclick="refreshDataInfo()" class="btn">刷新状态</button>
+                    </div>
+                    <div id="data-info" style="margin-top: 15px;"></div>
+                </div>
+
+                <!-- 回测参数面板 -->
+                <div class="card">
+                    <h3>🔬 回测参数</h3>
+                    <div class="control-panel" style="flex-wrap: wrap;">
+                        <div class="form-group">
+                            <label>选择策略</label>
+                            <select id="backtest-strategy-select"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>交易对</label>
+                            <select id="backtest-symbol">
+                                <option value="BTC-USDT">BTC-USDT</option>
+                                <option value="ETH-USDT">ETH-USDT</option>
+                                <option value="SOL-USDT">SOL-USDT</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>回测模式</label>
+                            <select id="backtest-mode">
+                                <option value="database">数据库模式 (推荐)</option>
+                                <option value="live">实时获取模式</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>K线周期</label>
+                            <select id="backtest-bar">
+                                <option value="1H">1小时</option>
+                                <option value="4H">4小时</option>
+                                <option value="1D">1天</option>
+                                <option value="15m">15分钟</option>
+                                <option value="5m">5分钟</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>开始时间</label>
+                            <input type="date" id="start-date">
+                        </div>
+                        <div class="form-group">
+                            <label>结束时间</label>
+                            <input type="date" id="end-date">
+                        </div>
+                        <div class="form-group">
+                            <label>初始资金 (USDT)</label>
+                            <input type="number" id="initial-balance" value="10000" min="100">
+                        </div>
+                        <button onclick="runBacktest()" class="btn primary">开始回测</button>
+                    </div>
+                </div>
+
+                <div id="backtest-results"></div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="section">
+                <h2>系统设置</h2>
+                <form id="config-form" onsubmit="saveConfig(event)">
+                    <h3>OKX API 配置</h3>
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <input type="text" name="OKX_API_KEY">
+                    </div>
+                    <div class="form-group">
+                        <label>Secret Key</label>
+                        <input type="password" name="OKX_SECRET_KEY">
+                    </div>
+                    <div class="form-group">
+                        <label>Passphrase</label>
+                        <input type="password" name="OKX_PASSPHRASE">
+                    </div>
+
+                    <h3>AI 配置</h3>
+                    <div class="form-group">
+                        <label>OpenAI API Key</label>
+                        <input type="password" name="OPENAI_API_KEY">
+                    </div>
+                    <div class="form-group">
+                        <label>API Base URL</label>
+                        <input type="text" name="OPENAI_API_BASE_URL">
+                    </div>
+                    <div class="form-group">
+                        <label>Model Name</label>
+                        <input type="text" name="OPENAI_MODEL">
+                    </div>
+
+                    <h3>通知配置</h3>
+                    <div class="form-group">
+                        <label>钉钉 Webhook</label>
+                        <input type="text" name="DINGTALK_WEBHOOK">
+                    </div>
+                    <div class="form-group">
+                        <label>飞书 Webhook</label>
+                        <input type="text" name="FEISHU_WEBHOOK">
+                    </div>
+
+                    <button type="submit" class="btn primary">保存配置</button>
+                </form>
+
+                <div class="settings-section" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+                    <h3>数据库管理</h3>
+                    <p style="color: #666; margin-bottom: 15px;">清空所有策略日志、交易记录、K线数据等，保留表结构。此操作不可恢复！</p>
+                    <button type="button" class="btn danger" onclick="resetDatabase()">
+                        🗑️ 一键初始化数据库
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+
+</html>

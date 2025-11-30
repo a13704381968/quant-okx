@@ -1,0 +1,11 @@
+__pycache__
+venv
+.git
+.gitignore
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+test_output.txt
+test_log.txt
+*.rar

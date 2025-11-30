@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: quant-web
+    ports:
+      - "5002:5002"
+    volumes:
+      - .:/app
+      - ./quant.db:/app/quant.db
+      - ./配置.txt:/app/配置.txt
+    environment:
+      - FLASK_ENV=production
+    command: python app.py
+    restart: always
+
+  scheduler:
+    build: .
+    container_name: quant-scheduler
+    volumes:
+      - .:/app
+      - ./quant.db:/app/quant.db
+      - ./配置.txt:/app/配置.txt
+    command: python scheduler.py
+    restart: always
